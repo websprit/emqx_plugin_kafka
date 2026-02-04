@@ -52,7 +52,7 @@ hosts([#{hostname := _, port := _} | _] = Servers) ->
 hosts(Hosts) when is_list(Hosts) ->
     kpro:parse_endpoints(Hosts).
 
-sasl(#{mechanism := Mechanism, username := Username, password := Secret}) ->
+sasl(#{enable := true, mechanism := Mechanism, username := Username, password := Secret}) ->
     {Mechanism, Username, Secret};
 sasl(_) ->
     undefined.

@@ -21,3 +21,9 @@ test/ct.cover.spec
 rebar3.crashdump
 rebar3
 /*.iml
+
+# Local development files
+walkthrough.md
+emqx_plugin_kafka_offline_src.tar.gz
+.tool-versions
+emqx_plugin_kafka.hocon

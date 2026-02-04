@@ -50,6 +50,7 @@ hooks([], _, Acc) ->
     persistent_term:put({?EMQX_PLUGIN_KAFKA_APP, ?EMQX_PLUGIN_KAFKA_CHANNELS}, Acc).
 
 hook(ResId, Hook = #{endpoint := Endpoint0, filter := Filter}) ->
+    ?SLOG(debug, #{msg => "emqx_plugin_kafka_registering_hook", endpoint => Endpoint0}),
     {ok, Endpoint} = emqx_utils:safe_to_existing_atom(Endpoint0),
     ChannelId = emqx_plugin_kafka_util:channel_id(Endpoint),
     emqx_resource_manager:add_channel(ResId, ChannelId, Hook),
@@ -63,6 +64,7 @@ hook(ResId, Hook = #{endpoint := Endpoint0, filter := Filter}) ->
 trigger_hook(_, undefined, _) ->
     ok;
 trigger_hook(Endpoint, Func, Opts) ->
+    ?SLOG(debug, #{msg => "emqx_plugin_kafka_trigger_hook_add", endpoint => Endpoint, func => Func}),
     emqx_hooks:add(Endpoint, {?MODULE, Func, [Opts]}, _Property = ?HP_HIGHEST).
 
 endpoint_func('client.connect') -> on_client_connect;
@@ -178,10 +180,13 @@ on_session_terminated(ClientInfo, Reason, _SessInfo, Opts) ->
 %%--------------------------------------------------------------------
 
 on_message_publish(Message, Opts = #{filter := Filter}) ->
+    ?SLOG(debug, #{msg => "kafka_plugin_on_message_publish", topic => Message#message.topic, filter => Filter}),
     case match_topic(Message, Filter) of
         true ->
+            ?SLOG(debug, #{msg => "kafka_plugin_message_matched", topic => Message#message.topic}),
             query(?evt_mod:eventmsg_publish(Message), Opts);
         false ->
+            ?SLOG(debug, #{msg => "kafka_plugin_message_ignored", topic => Message#message.topic}),
             ok
     end,
     {ok, Message}.
@@ -237,7 +242,8 @@ query(
         EvtMsg
     ).
 
-query_ret({_, {ok, _}}, _) ->
+query_ret({_, {ok, _}}, _EvtMsg) ->
+    ?SLOG(debug, #{msg => "kafka_plugin_query_success", evt => _EvtMsg}),
     ok;
 query_ret(Ret, EvtMsg) ->
     ?SLOG(error,

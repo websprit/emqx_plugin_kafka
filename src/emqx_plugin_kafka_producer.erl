@@ -17,7 +17,11 @@
     , on_get_channel_status/3
     , on_remove_channel/3
     , on_query_async/4
+    , resource_type/0
 ]).
+
+resource_type() ->
+    emqx_plugin_kafka_producer.
 
 query_mode(_) ->
     simple_async_internal_buffer.
@@ -88,6 +92,7 @@ on_add_channel(
     ChannelConfig
 ) ->
     {ok, ChannelState} = start_producers(InstId, ChannelId, ClientId, ChannelConfig),
+    ?SLOG(debug, #{msg => "kafka_plugin_producer_on_add_channel_success", channel_id => ChannelId}),
     NChannels = maps:put(ChannelId, ChannelState, Channels),
     NewState = OldState#{channels => NChannels},
     {ok, NewState}.
@@ -125,6 +130,7 @@ on_query_async(
     _,
     #{channels := Channels} = _ConnectorState
 ) ->
+    ?SLOG(debug, #{msg => "kafka_plugin_producer_received_msg", channel_id => ChannelId}),
     #{
         message_template := Template,
         producers := Producers,
@@ -216,7 +222,7 @@ start_producers(
             }};
         {error, Reason2} ->
             ?SLOG(error, #{
-                msg => "failed_to_start_kafka_producer",
+                msg => "kafka_plugin_failed_to_start_kafka_producer",
                 instance_id => InstId,
                 channel_id => ChannelId,
                 kafka_topic => KafkaTopic,
@@ -302,6 +308,7 @@ encode_payload(_, Payload) ->
     Payload.
 
 do_send_msg(KafkaMessage, Producers) ->
+    ?SLOG(debug, #{msg => "kafka_plugin_sending_to_wolff", payload => KafkaMessage}),
     {_Partition, Pid} = wolff:send(Producers, [KafkaMessage], fun(_Partition, _BaseOffset) -> ok end),
     {ok, Pid}.
 

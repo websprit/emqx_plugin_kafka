@@ -12,9 +12,14 @@ load() ->
     load(read_config()).
 
 load(Conf = #{connection := _, producer := _, hooks := _}) ->
+    ?SLOG(debug, #{msg => "emqx_plugin_kafka_load_start", conf => Conf}),
     emqx_plugin_kafka_util:check_crc32cer_nif(),
-    {ok, _} = start_resource(Conf),
-    hooks(Conf);
+    case start_resource(Conf) of
+        {ok, _} ->
+            hooks(Conf);
+        error ->
+            {error, start_resource_failed}
+    end;
 load(_) ->
     {error, "config_error"}.
 
@@ -23,7 +28,7 @@ read_config() ->
         {ok, RawConf} ->
             case emqx_config:check_config(emqx_plugin_kafka_schema, RawConf) of
                 {_, #{plugin_kafka := Conf}} ->
-                    ?SLOG(info, #{
+                    ?SLOG(warning, #{
                         msg => "emqx_plugin_kafka config",
                         config => Conf
                     }),
@@ -75,6 +80,7 @@ start_resource_if_enabled({ok, #{error := Error, id := ResId}}) ->
     error.
 
 hooks(#{producer := Producer, hooks := Hooks}) ->
+    ?SLOG(debug, #{msg => "emqx_plugin_kafka_setup_hooks", hooks_count => length(Hooks)}),
     emqx_plugin_kafka_hook:hooks(Hooks, Producer, []).
 
 unload() ->

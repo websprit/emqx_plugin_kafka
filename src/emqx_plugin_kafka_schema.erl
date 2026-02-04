@@ -61,7 +61,8 @@ fields(connection) ->
         )},
         {sasl, ?HOCON(?R_REF(sasl),
             #{
-                desc => ?DESC("sasl")
+                desc => ?DESC("sasl"),
+                required => false
             }
         )},
         {ssl, ?HOCON(?R_REF(ssl),
@@ -87,23 +88,29 @@ fields(bootstrap_host) ->
     ];
 fields(sasl) ->
     [
+        {enable, ?HOCON(boolean(),
+            #{
+                default => false,
+                desc => ?DESC("sasl_enable")
+            }
+        )},
         {mechanism, ?HOCON(enum([plain, scram_sha_256, scram_sha_512]),
             #{
                 default => plain,
                 desc => ?DESC("sasl_mechanism"),
-                required => true
+                required => false
             }
         )},
         {username, ?HOCON(string(),
             #{
                 desc => ?DESC("sasl_username"),
-                required => true
+                required => false
             }
         )},
         {password, ?HOCON(string(),
             #{
                 desc => ?DESC("sasl_password"),
-                required => true
+                required => false
             }
         )}
     ];

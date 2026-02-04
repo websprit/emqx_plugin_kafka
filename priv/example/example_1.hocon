@@ -1,7 +1,7 @@
 plugin_kafka {
   connection {
     client_id = "kafka_client"
-    bootstrap_hosts = ["10.3.64.223:9192", "10.3.64.223:9292", "10.3.64.223:9392"]
+    bootstrap_hosts = ["192.168.75.185:9092"]
 
     connect_timeout = 5s
     connection_strategy = per_partition
