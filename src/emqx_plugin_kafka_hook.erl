@@ -52,7 +52,7 @@ hooks([], _, Acc) ->
 hook(ResId, Hook = #{endpoint := Endpoint0, filter := Filter}) ->
     ?SLOG(debug, #{msg => "emqx_plugin_kafka_registering_hook", endpoint => Endpoint0}),
     {ok, Endpoint} = emqx_utils:safe_to_existing_atom(Endpoint0),
-    ChannelId = emqx_plugin_kafka_util:channel_id(Endpoint),
+    ChannelId = emqx_plugin_kafka_util:channel_id(Hook),
     emqx_resource_manager:add_channel(ResId, ChannelId, Hook),
     Opts = #{
         channel_id => ChannelId,
@@ -73,7 +73,6 @@ endpoint_func('client.connected') -> on_client_connected;
 endpoint_func('client.disconnected') -> on_client_disconnected;
 endpoint_func('client.authenticate') -> on_client_authenticate;
 endpoint_func('client.authorize') -> on_client_authorize;
-endpoint_func('client.authenticate') -> on_client_authenticate;
 endpoint_func('client.check_authz_complete') -> on_client_check_authz_complete;
 endpoint_func('session.created') -> on_session_created;
 endpoint_func('session.subscribed') -> on_session_subscribed;
@@ -180,13 +179,10 @@ on_session_terminated(ClientInfo, Reason, _SessInfo, Opts) ->
 %%--------------------------------------------------------------------
 
 on_message_publish(Message, Opts = #{filter := Filter}) ->
-    ?SLOG(debug, #{msg => "kafka_plugin_on_message_publish", topic => Message#message.topic, filter => Filter}),
     case match_topic(Message, Filter) of
         true ->
-            ?SLOG(debug, #{msg => "kafka_plugin_message_matched", topic => Message#message.topic}),
             query(?evt_mod:eventmsg_publish(Message), Opts);
         false ->
-            ?SLOG(debug, #{msg => "kafka_plugin_message_ignored", topic => Message#message.topic}),
             ok
     end,
     {ok, Message}.
@@ -243,12 +239,11 @@ query(
     ).
 
 query_ret({_, {ok, _}}, _EvtMsg) ->
-    ?SLOG(debug, #{msg => "kafka_plugin_query_success", evt => _EvtMsg}),
     ok;
 query_ret(Ret, EvtMsg) ->
     ?SLOG(error,
         #{
             msg => "failed_to_query_kafka_resource",
             ret => Ret,
-            evt_msg => EvtMsg
+            event => maps:get(event, EvtMsg, undefined)
         }).

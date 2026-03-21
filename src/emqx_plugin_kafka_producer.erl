@@ -127,10 +127,9 @@ on_remove_channel(
 on_query_async(
     InstId,
     {ChannelId, Message},
-    _,
+    ReplyFunAndArgs,
     #{channels := Channels} = _ConnectorState
 ) ->
-    ?SLOG(debug, #{msg => "kafka_plugin_producer_received_msg", channel_id => ChannelId}),
     #{
         message_template := Template,
         producers := Producers,
@@ -138,7 +137,7 @@ on_query_async(
     } = maps:get(ChannelId, Channels),
     try
         KafkaMessage = render_message(Template, Message, EncodePayloadType),
-        do_send_msg(KafkaMessage, Producers)
+        do_send_msg(KafkaMessage, Producers, ReplyFunAndArgs)
     catch
         Error:Reason :Stack ->
             ?SLOG(error, #{
@@ -307,10 +306,29 @@ encode_payload(base64, Payload) ->
 encode_payload(_, Payload) ->
     Payload.
 
-do_send_msg(KafkaMessage, Producers) ->
-    ?SLOG(debug, #{msg => "kafka_plugin_sending_to_wolff", payload => KafkaMessage}),
-    {_Partition, Pid} = wolff:send(Producers, [KafkaMessage], fun(_Partition, _BaseOffset) -> ok end),
+do_send_msg(KafkaMessage, Producers, ReplyFunAndArgs) ->
+    AckFun = kafka_ack_fun(ReplyFunAndArgs),
+    {_Partition, Pid} = wolff:send(Producers, [KafkaMessage], AckFun),
     {ok, Pid}.
+
+kafka_ack_fun(undefined) ->
+    fun(_Partition, _BaseOffset) -> ok end;
+kafka_ack_fun(ReplyFunAndArgs) ->
+    fun(_Partition, BaseOffset) ->
+        apply_reply_fun(ReplyFunAndArgs, ack_result(BaseOffset))
+    end.
+
+ack_result(BaseOffset) when is_integer(BaseOffset) ->
+    ok;
+ack_result(BaseOffset) ->
+    {error, BaseOffset}.
+
+apply_reply_fun({ReplyFun, Args}, Result) when is_function(ReplyFun) ->
+    ok = apply(ReplyFun, Args ++ [Result]);
+apply_reply_fun({ReplyFun, Args, _Context}, Result) when is_function(ReplyFun) ->
+    ok = apply(ReplyFun, Args ++ [Result]);
+apply_reply_fun(_, _Result) ->
+    ok.
 
 with_log_at_error(Fun, Log) ->
     try

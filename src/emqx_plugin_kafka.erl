@@ -12,13 +12,25 @@ load() ->
     load(read_config()).
 
 load(Conf = #{connection := _, producer := _, hooks := _}) ->
-    ?SLOG(debug, #{msg => "emqx_plugin_kafka_load_start", conf => Conf}),
-    emqx_plugin_kafka_util:check_crc32cer_nif(),
-    case start_resource(Conf) of
-        {ok, _} ->
-            hooks(Conf);
-        error ->
-            {error, start_resource_failed}
+    ?SLOG(info, #{
+        msg => "emqx_plugin_kafka_load_start",
+        hooks_count => length(maps:get(hooks, Conf, []))
+    }),
+    case validate_hooks(Conf) of
+        ok ->
+            emqx_plugin_kafka_util:check_crc32cer_nif(),
+            case start_resource(Conf) of
+                {ok, _} ->
+                    hooks(Conf);
+                error ->
+                    {error, start_resource_failed}
+            end;
+        {error, _} = Error ->
+            ?SLOG(error, #{
+                msg => "emqx_plugin_kafka_invalid_config",
+                reason => Error
+            }),
+            Error
     end;
 load(_) ->
     {error, "config_error"}.
@@ -28,9 +40,10 @@ read_config() ->
         {ok, RawConf} ->
             case emqx_config:check_config(emqx_plugin_kafka_schema, RawConf) of
                 {_, #{plugin_kafka := Conf}} ->
-                    ?SLOG(warning, #{
-                        msg => "emqx_plugin_kafka config",
-                        config => Conf
+                    ?SLOG(info, #{
+                        msg => "emqx_plugin_kafka_config_loaded",
+                        file => kafka_config_file(),
+                        hooks_count => length(maps:get(hooks, Conf, []))
                     }),
                     Conf;
                 _ ->
@@ -77,13 +90,48 @@ start_resource_if_enabled({ok, #{error := Error, id := ResId}}) ->
         resource_id => ResId
     }),
     emqx_resource:stop(ResId),
+    emqx_resource:remove_local(ResId),
     error.
 
 hooks(#{producer := Producer, hooks := Hooks}) ->
-    ?SLOG(debug, #{msg => "emqx_plugin_kafka_setup_hooks", hooks_count => length(Hooks)}),
+    ?SLOG(info, #{msg => "emqx_plugin_kafka_setup_hooks", hooks_count => length(Hooks)}),
     emqx_plugin_kafka_hook:hooks(Hooks, Producer, []).
 
 unload() ->
     emqx_plugin_kafka_hook:unhook(),
     ResId = emqx_plugin_kafka_util:resource_id(),
     emqx_resource:remove_local(ResId).
+
+validate_hooks(#{hooks := Hooks}) ->
+    lists:foldl(
+        fun
+            (Hook, ok) -> validate_hook(Hook);
+            (_, {error, _} = Error) -> Error
+        end,
+        ok,
+        Hooks
+    ).
+
+validate_hook(#{endpoint := Endpoint, filter := Filter}) ->
+    case is_message_endpoint(Endpoint) of
+        true -> validate_message_filter(Filter);
+        false -> ok
+    end.
+
+is_message_endpoint("message.publish") -> true;
+is_message_endpoint("message.delivered") -> true;
+is_message_endpoint("message.acked") -> true;
+is_message_endpoint("message.dropped") -> true;
+is_message_endpoint(_) -> false.
+
+validate_message_filter(Filter) when is_binary(Filter), byte_size(Filter) > 0 ->
+    case Filter of
+        <<$#, _/binary>> ->
+            {error, {invalid_message_filter, Filter}};
+        <<$+, _/binary>> ->
+            {error, {invalid_message_filter, Filter}};
+        _ ->
+            ok
+    end;
+validate_message_filter(Filter) ->
+    {error, {invalid_message_filter, Filter}}.

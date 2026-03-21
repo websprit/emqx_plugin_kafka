@@ -13,6 +13,55 @@ Kafka plugin for EMQX >= V5.4.0 && EMQX <= V5.7.3
 _build/default/emqx_plugrel/emqx_plugin_kafka-<vsn>.tar.gz
 ```
 
+### Docker Build
+
+This repository now keeps two Docker-based build flows:
+
+#### 1. Original flow: `docker run`
+
+This is the existing script and remains unchanged.
+
+```shell
+./build_in_docker.sh
+```
+
+It runs the build inside an `erlang:26.2.5` container and writes the package back to:
+
+```shell
+_build/default/emqx_plugrel/emqx_plugin_kafka-<vsn>.tar.gz
+```
+
+#### 2. Standardized flow: `Dockerfile + docker buildx`
+
+This flow builds inside Docker BuildKit and exports the package to `dist/`.
+
+```shell
+chmod +x build_with_buildx.sh
+./build_with_buildx.sh
+```
+
+The default target platform is `linux/amd64`. You can override it if needed:
+
+```shell
+PLATFORM=linux/amd64 OUT_DIR=dist ./build_with_buildx.sh
+```
+
+Artifacts are exported to:
+
+```shell
+dist/emqx_plugin_kafka-<vsn>.tar.gz
+```
+
+If you prefer to invoke `buildx` directly:
+
+```shell
+docker buildx build \
+  --platform linux/amd64 \
+  --target artifact \
+  --output type=local,dest=./dist \
+  .
+```
+
 ### Config
 
 #### Explain

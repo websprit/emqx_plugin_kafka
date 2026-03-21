@@ -18,6 +18,15 @@ resource_id() ->
 client_id(ClientId) ->
     <<"emqx_plugin:kafka_client:", (bin(ClientId))/binary>>.
 
+channel_id(#{endpoint := Endpoint} = Hook) ->
+    HashInput = maps:with([endpoint, filter, kafka_topic, kafka_message], Hook),
+    Hash = erlang:phash2(HashInput, 16#ffffffff),
+    <<
+        "emqx_plugin:kafka_producer:connector:",
+        (bin(Endpoint))/binary,
+        ":",
+        (integer_to_binary(Hash))/binary
+    >>;
 channel_id(Endpoint) ->
     <<"emqx_plugin:kafka_producer:connector:", (bin(Endpoint))/binary>>.
 

@@ -11,8 +11,13 @@
 
 start(_StartType, _StartArgs) ->
     {ok, Sup} = emqx_plugin_kafka_sup:start_link(),
-    emqx_plugin_kafka:load(),
-    {ok, Sup}.
+    case emqx_plugin_kafka:load() of
+        ok ->
+            {ok, Sup};
+        {error, Reason} ->
+            exit(Sup, shutdown),
+            {error, Reason}
+    end.
 
 stop(_State) ->
     emqx_plugin_kafka:unload(),

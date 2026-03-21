@@ -1,0 +1,10 @@
+.git
+.gitignore
+.DS_Store
+.idea
+_build
+dist
+rebar3
+rebar3.crashdump
+walkthrough.md
+emqx_plugin_kafka_offline_src.tar.gz
